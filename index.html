@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ระบบถ่ายภาพ + ส่ง Log เข้า Telegram (GGN PATROL SYSTEM)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    max-width: 480px;
+    margin: auto;
+    padding: 15px;
+    background: #f0f0f5;
+    color: #222;
+  }
+  h2 {
+    text-align: center;
+    margin-bottom: 15px;
+  }
+  select, input[type="file"], textarea {
+    width: 100%;
+    margin-bottom: 10px;
+    font-size: 16px;
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+  }
+  #previewContainer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 15px;
+  }
+  #previewContainer img {
+    width: 120px;
+    height: 160px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 2px solid #444;
+  }
+  button {
+    width: 100%;
+    background-color: #004080;
+    color: white;
+    font-size: 18px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-bottom: 10px;
+  }
+  button:hover {
+    background-color: #0066cc;
+  }
+  #status {
+    margin-top: 12px;
+    font-weight: bold;
+    min-height: 24px;
+    text-align: center;
+  }
+  #previewText {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 15px;
+    white-space: pre-wrap;
+  }
+  canvas {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<h2>📷 ระบบถ่ายภาพ + ส่ง Log เข้า Telegram (GGN PATROL SYSTEM)</h2>
+
+<select id="jobType">
+  <option value="">-- เลือกประเภทงาน --</option>
+  <option value="จุดตรวจ">จุดตรวจ</option>
+  <option value="รายงาน">รายงาน</option>
+  <option value="Checkin">Check in</option>
+  <option value="Checkout">Check out</option>
+</select>
+
+<input type="file" id="imageInput" accept="image/*" multiple />
+<textarea id="text" rows="2" placeholder="ข้อความเพิ่มเติม (ถ้ามี)"></textarea>
+<div id="previewText"></div>
+<button id="sendBtn">ส่งภาพและ Log เข้า Telegram</button>
+
+<div id="previewContainer"></div>
+<div id="status"></div>
+<canvas id="canvas"></canvas>
+
+<script>
+  const botToken = "7550055487:AAFMzG_91w9bwoce1L18saWcsDJTMQjIbeU";
+  const chatId = "-4856155240";
+
+  const jobType = document.getElementById("jobType");
+  const imageInput = document.getElementById("imageInput");
+  const previewContainer = document.getElementById("previewContainer");
+  const status = document.getElementById("status");
+  const previewText = document.getElementById("previewText");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const extraText = document.getElementById("text");
+
+  let photos = [];
+  let processedPhotos = [];
+  let locationStr = "";
+
+  imageInput.addEventListener("change", (e) => {
+    photos = Array.from(e.target.files);
+    updatePreview();
+  });
+
+  function updatePreview() {
+    previewContainer.innerHTML = "";
+    photos.forEach((file) => {
+      const img = document.createElement("img");
+      img.src = URL.createObjectURL(file);
+      previewContainer.appendChild(img);
+    });
+  }
+
+  function getLocation() {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) return resolve("");
+      navigator.geolocation.getCurrentPosition(async pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=th`);
+          const data = await res.json();
+          locationStr = data.display_name || `${lat.toFixed(6)},${lon.toFixed(6)}`;
+        } catch {
+          locationStr = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+        }
+        updatePreviewText();
+        resolve();
+      }, () => resolve());
+    });
+  }
+
+  function updatePreviewText() {
+    const extraMsg = extraText.value.trim();
+    const job = jobType.value || "-";
+    const nowStr = new Date().toLocaleString("th-TH");
+    const preview = `📅 ${nowStr}\n📍 ${locationStr}\n📌 งาน: ${job}${extraMsg ? `\n📝 ${extraMsg}` : ""}`;
+    previewText.textContent = preview;
+  }
+
+  extraText.addEventListener("input", updatePreviewText);
+  jobType.addEventListener("change", updatePreviewText);
+
+  async function processImage(file, captionText) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+
+        const fontSize = Math.floor(canvas.height / 18);
+        const rectHeight = fontSize * 5.5;
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(0, canvas.height - rectHeight, canvas.width, rectHeight);
+        ctx.font = `${fontSize}px sans-serif`;
+        ctx.fillStyle = "#fff";
+
+        const lines = captionText.split("\n");
+        lines.forEach((line, i) => {
+          ctx.fillText(line, 12, canvas.height - rectHeight + i * fontSize * 1.5 + 10);
+        });
+
+        canvas.toBlob(blob => {
+          resolve(blob);
+        }, "image/jpeg", 0.9);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function sendToTelegram() {
+    if (photos.length === 0) return alert("กรุณาเลือกรูปภาพอย่างน้อย 1 รูป");
+    status.textContent = "📍 กำลังดึงพิกัด...";
+    await getLocation();
+
+    const caption = previewText.textContent;
+    const nowStr = new Date().toLocaleString("th-TH");
+    const job = jobType.value || "-";
+    const extraMsg = extraText.value.trim();
+
+    processedPhotos = [];
+
+    for (let i = 0; i < photos.length; i++) {
+      const blob = await processImage(photos[i], caption);
+
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("photo", blob, `photo${i + 1}.jpg`);
+      form.append("caption", caption);
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+        method: "POST",
+        body: form,
+      });
+
+      processedPhotos.push({ i: i + 1, nowStr, location: locationStr, job, extraMsg });
+    }
+
+    const wb = XLSX.utils.book_new();
+    const data = [["ลำดับ", "วันเวลา", "สถานที่", "ประเภทงาน", "ข้อความ"]];
+    processedPhotos.forEach(p =>
+      data.push([p.i, p.nowStr, p.location, p.job, p.extraMsg])
+    );
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Log");
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const excelBlob = new Blob([wbout], { type: "application/octet-stream" });
+
+    const logForm = new FormData();
+    logForm.append("chat_id", chatId);
+    logForm.append("document", excelBlob, "log.xlsx");
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: "POST",
+      body: logForm,
+    });
+
+    status.textContent = "✅ ส่งภาพและ log สำเร็จแล้ว!";
+    photos = [];
+    updatePreview();
+    extraText.value = "";
+    previewText.textContent = "";
+  }
+
+  document.getElementById("sendBtn").addEventListener("click", sendToTelegram);
+</script>
+</body>
+</html>
