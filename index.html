@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
@@ -85,7 +86,7 @@
   <option value="Checkout">Check out</option>
 </select>
 
-<input type="file" id="imageInput" accept="image/*" multiple />
+<input type="file" id="imageInput" accept="image/jpeg,image/png,image/jpg" multiple />
 <textarea id="text" rows="2" placeholder="ข้อความเพิ่มเติม (ถ้ามี)"></textarea>
 <div id="previewText"></div>
 <button id="sendBtn">ส่งภาพและ Log เข้า Telegram</button>
@@ -95,8 +96,8 @@
 <canvas id="canvas"></canvas>
 
 <script>
-  const botToken = "7550055487:AAFMzG_91w9bwoce1L18saWcsDJTMQjIbeU";
-  const chatId = "-4856155240";
+  const botToken = "BOT_TOKEN";
+  const chatId = "CHAT_ID";
 
   const jobType = document.getElementById("jobType");
   const imageInput = document.getElementById("imageInput");
@@ -112,7 +113,13 @@
   let locationStr = "";
 
   imageInput.addEventListener("change", (e) => {
-    photos = Array.from(e.target.files);
+    photos = Array.from(e.target.files).filter(file => {
+      if (file.type === "image/heic" || file.name.endsWith(".heic")) {
+        alert("ไม่รองรับไฟล์ .heic กรุณาเลือกภาพ .jpg หรือ .png");
+        return false;
+      }
+      return true;
+    });
     updatePreview();
   });
 
@@ -125,12 +132,9 @@
     });
   }
 
-  function getLocation(timeout = 10000) {
+  function getLocation() {
     return new Promise((resolve) => {
       if (!navigator.geolocation) return resolve("");
-
-      const options = { enableHighAccuracy: true, timeout };
-
       navigator.geolocation.getCurrentPosition(async pos => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
@@ -143,11 +147,7 @@
         }
         updatePreviewText();
         resolve();
-      }, () => {
-        locationStr = "ไม่พบพิกัด";
-        updatePreviewText();
-        resolve();
-      }, options);
+      }, () => resolve());
     });
   }
 
@@ -155,34 +155,30 @@
     const extraMsg = extraText.value.trim();
     const job = jobType.value || "-";
     const nowStr = new Date().toLocaleString("th-TH");
-    const preview = `📅 ${nowStr}\n📍 ${locationStr}\n📌 งาน: ${job}${extraMsg ? `\n📝 ${extraMsg}` : ""}`;
+    const preview = `📅 ${nowStr}
+📍 ${locationStr}
+📌 งาน: ${job}${extraMsg ? `
+📝 ${extraMsg}` : ""}`;
     previewText.textContent = preview;
   }
 
   extraText.addEventListener("input", updatePreviewText);
   jobType.addEventListener("change", updatePreviewText);
 
-  async function processImage(file, captionText) {
+  async function processImage(file) {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const scale = 0.5;
-        canvas.width = img.naturalWidth * scale;
-        canvas.height = img.naturalHeight * scale;
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const fontSize = Math.floor(canvas.height / 18);
-        const rectHeight = fontSize * 5.5;
-        ctx.fillStyle = "rgba(0,0,0,0.6)";
-        ctx.fillRect(0, canvas.height - rectHeight, canvas.width, rectHeight);
-        ctx.font = `${fontSize}px sans-serif`;
-        ctx.fillStyle = "#fff";
-
-        const lines = captionText.split("\n");
-        lines.forEach((line, i) => {
-          ctx.fillText(line, 12, canvas.height - rectHeight + i * fontSize * 1.5 + 10);
-        });
-
+        const maxDim = 1024;
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height);
+          width = Math.floor(width * scale);
+          height = Math.floor(height * scale);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
         canvas.toBlob(blob => {
           resolve(blob);
         }, "image/jpeg", 0.9);
@@ -204,8 +200,7 @@
     processedPhotos = [];
 
     for (let i = 0; i < photos.length; i++) {
-      status.textContent = `📸 กำลังประมวลผลภาพที่ ${i + 1}...`;
-      const blob = await processImage(photos[i], caption);
+      const blob = await processImage(photos[i]);
 
       const form = new FormData();
       form.append("chat_id", chatId);
@@ -219,8 +214,6 @@
 
       processedPhotos.push({ i: i + 1, nowStr, location: locationStr, job, extraMsg });
     }
-
-    status.textContent = "📄 กำลังส่ง Log Excel...";
 
     const wb = XLSX.utils.book_new();
     const data = [["ลำดับ", "วันเวลา", "สถานที่", "ประเภทงาน", "ข้อความ"]];
