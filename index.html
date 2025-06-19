@@ -1,25 +1,22 @@
-
 <!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ระบบถ่ายภาพ + ส่ง Log เข้า Telegram (GGN PATROL SYSTEM)</title>
+<title>GGN PATROL SYSTEM</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   body {
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI", Tahoma, sans-serif;
     max-width: 480px;
     margin: auto;
     padding: 15px;
     background: #f0f0f5;
-    color: #222;
   }
   h2 {
     text-align: center;
-    margin-bottom: 15px;
   }
-  select, input[type="file"], textarea {
+  select, input[type="file"], textarea, button {
     width: 100%;
     margin-bottom: 10px;
     font-size: 16px;
@@ -32,43 +29,31 @@
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
-    margin-bottom: 15px;
   }
   #previewContainer img {
     width: 120px;
     height: 160px;
     object-fit: cover;
-    border-radius: 6px;
     border: 2px solid #444;
+    border-radius: 6px;
   }
   button {
-    width: 100%;
     background-color: #004080;
     color: white;
     font-size: 18px;
-    padding: 12px;
     border: none;
     border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.3s;
-    margin-bottom: 10px;
   }
   button:hover {
     background-color: #0066cc;
-  }
-  #status {
-    margin-top: 12px;
-    font-weight: bold;
-    min-height: 24px;
-    text-align: center;
   }
   #previewText {
     background: #fff;
     border: 1px solid #ccc;
     padding: 10px;
-    margin-bottom: 15px;
-    font-size: 15px;
     white-space: pre-wrap;
+    font-size: 15px;
   }
   canvas {
     display: none;
@@ -76,7 +61,8 @@
 </style>
 </head>
 <body>
-<h2>📷 ระบบถ่ายภาพ + ส่ง Log เข้า Telegram (GGN PATROL SYSTEM)</h2>
+
+<h2>📷 ระบบถ่ายภาพ + ส่ง Log เข้า Telegram</h2>
 
 <select id="jobType">
   <option value="">-- เลือกประเภทงาน --</option>
@@ -86,7 +72,7 @@
   <option value="Checkout">Check out</option>
 </select>
 
-<input type="file" id="imageInput" accept="image/jpeg,image/png,image/jpg" multiple />
+<input type="file" id="imageInput" accept="image/jpeg,image/png" multiple />
 <textarea id="text" rows="2" placeholder="ข้อความเพิ่มเติม (ถ้ามี)"></textarea>
 <div id="previewText"></div>
 <button id="sendBtn">ส่งภาพและ Log เข้า Telegram</button>
@@ -96,17 +82,17 @@
 <canvas id="canvas"></canvas>
 
 <script>
-  const botToken = "BOT_TOKEN";
-  const chatId = "CHAT_ID";
+  const botToken = "7550055487:AAFMzG_91w9bwoce1L18saWcsDJTMQjIbeU";
+  const chatId = "-4856155240";
 
   const jobType = document.getElementById("jobType");
   const imageInput = document.getElementById("imageInput");
   const previewContainer = document.getElementById("previewContainer");
-  const status = document.getElementById("status");
   const previewText = document.getElementById("previewText");
+  const extraText = document.getElementById("text");
+  const status = document.getElementById("status");
   const canvas = document.getElementById("canvas");
   const ctx = canvas.getContext("2d");
-  const extraText = document.getElementById("text");
 
   let photos = [];
   let processedPhotos = [];
@@ -115,7 +101,7 @@
   imageInput.addEventListener("change", (e) => {
     photos = Array.from(e.target.files).filter(file => {
       if (file.type === "image/heic" || file.name.endsWith(".heic")) {
-        alert("ไม่รองรับไฟล์ .heic กรุณาเลือกภาพ .jpg หรือ .png");
+        alert("ไม่รองรับไฟล์ .heic กรุณาใช้ .jpg หรือ .png");
         return false;
       }
       return true;
@@ -125,7 +111,7 @@
 
   function updatePreview() {
     previewContainer.innerHTML = "";
-    photos.forEach((file) => {
+    photos.forEach(file => {
       const img = document.createElement("img");
       img.src = URL.createObjectURL(file);
       previewContainer.appendChild(img);
@@ -152,14 +138,10 @@
   }
 
   function updatePreviewText() {
-    const extraMsg = extraText.value.trim();
     const job = jobType.value || "-";
+    const extra = extraText.value.trim();
     const nowStr = new Date().toLocaleString("th-TH");
-    const preview = `📅 ${nowStr}
-📍 ${locationStr}
-📌 งาน: ${job}${extraMsg ? `
-📝 ${extraMsg}` : ""}`;
-    previewText.textContent = preview;
+    previewText.textContent = `📅 ${nowStr}\n📍 ${locationStr}\n📌 งาน: ${job}${extra ? `\n📝 ${extra}` : ""}`;
   }
 
   extraText.addEventListener("input", updatePreviewText);
@@ -169,26 +151,18 @@
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 1024;
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const scale = maxDim / Math.max(width, height);
-          width = Math.floor(width * scale);
-          height = Math.floor(height * scale);
-        }
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(blob => {
-          resolve(blob);
-        }, "image/jpeg", 0.9);
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(blob => resolve(blob), "image/jpeg", 0.9);
       };
       img.src = URL.createObjectURL(file);
     });
   }
 
   async function sendToTelegram() {
-    if (photos.length === 0) return alert("กรุณาเลือกรูปภาพอย่างน้อย 1 รูป");
+    if (photos.length === 0) return alert("กรุณาเลือกรูปภาพ");
     status.textContent = "📍 กำลังดึงพิกัด...";
     await getLocation();
 
@@ -201,7 +175,6 @@
 
     for (let i = 0; i < photos.length; i++) {
       const blob = await processImage(photos[i]);
-
       const form = new FormData();
       form.append("chat_id", chatId);
       form.append("photo", blob, `photo${i + 1}.jpg`);
@@ -209,7 +182,7 @@
 
       await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
         method: "POST",
-        body: form,
+        body: form
       });
 
       processedPhotos.push({ i: i + 1, nowStr, location: locationStr, job, extraMsg });
@@ -231,17 +204,18 @@
 
     await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: "POST",
-      body: logForm,
+      body: logForm
     });
 
     status.textContent = "✅ ส่งภาพและ log สำเร็จแล้ว!";
     photos = [];
     updatePreview();
-    extraText.value = "";
     previewText.textContent = "";
+    extraText.value = "";
   }
 
   document.getElementById("sendBtn").addEventListener("click", sendToTelegram);
 </script>
+
 </body>
 </html>
