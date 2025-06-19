@@ -171,7 +171,7 @@
         canvas.height = img.naturalHeight * scale;
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        const fontSize = Math.floor(canvas.height / 60);
+        const fontSize = Math.floor(canvas.height / 18);
         const rectHeight = fontSize * 5.5;
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, canvas.height - rectHeight, canvas.width, rectHeight);
